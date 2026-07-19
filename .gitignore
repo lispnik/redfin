@@ -1,0 +1,24 @@
+# Compiled Lisp
+*.fasl
+*.fas
+*.lx64fsl
+*.dx64fsl
+
+# ocicl-managed dependencies (fetched via `ocicl install`)
+/systems/
+/systems.csv
+
+# SBCL / build artifacts
+*.core
+/bin/
+
+# Editor / OS
+*~
+\#*\#
+.\#*
+.DS_Store
+
+# Scraped data must never be committed
+*.csv
+!tests/**/*.csv
+/data/
