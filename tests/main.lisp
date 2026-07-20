@@ -57,8 +57,8 @@
     (flet ((val (k) (cdr (assoc k params :test #'string=))))
       (is (string= "30818" (val "region_id")))
       (is (string= "6" (val "region_type")))
-      (is (string= "3" (val "min_num_beds")))
-      (is (string= "2" (val "min_num_baths")))
+      (is (string= "3" (val "num_beds")))
+      (is (string= "2" (val "num_baths")))
       (is (string= "1" (val "status")))
       (is (string= "350" (val "num_homes"))))))
 
@@ -70,7 +70,7 @@
     (is (search "stingray/api/gis-csv" url))
     (is (search "region_id=30818" url))
     (is (search "min_price=500000" url))
-    (is (search "min_num_beds=3" url))))
+    (is (search "num_beds=3" url))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Region URL parsing
@@ -244,5 +244,15 @@
           (is (every (lambda (l)
                        (let ((p (redfin:listing-price l)))
                          (or (null p) (<= 500000 p 760000))))
+                     listings))
+          ;; beds/baths filters must actually be honored server-side
+          ;; (guards the num_beds/num_baths param names).
+          (is (every (lambda (l)
+                       (let ((b (redfin:listing-beds l)))
+                         (or (null b) (>= b 3))))
+                     listings))
+          (is (every (lambda (l)
+                       (let ((b (redfin:listing-baths l)))
+                         (or (null b) (>= b 2))))
                      listings))))
       (skip "Set REDFIN_LIVE_TESTS to run the live network test.")))

@@ -75,7 +75,8 @@ bin/redfin --location "Austin, TX" \
   --property-types house,condo,townhouse --limit 20
 ```
 
-Output is a table by default, or CSV with `--format csv`. Pass a location with
+Output is a table by default (ending in a URL column; drop it with
+`--no-url`), or CSV with `--format csv`. Pass a location with
 `--location` (free text or zip) or an explicit `--region-id` (with optional
 `--region-type`). Add `--tile` with a price range to beat the 350-row cap.
 

@@ -39,6 +39,7 @@ _redfin() {
     '--tile[split price range into bands to beat the 350-row cap]' \
     '--band-count[number of price bands when --tile is set]:band count:' \
     '--format[output format]:format:(table csv)' \
+    '--no-url[omit the URL column from table output]' \
     '--sort[sort by FIELD, direction asc or desc]:sort:->sort' \
     '--limit[show at most N listings]:limit:' \
     '(-h --help)'{-h,--help}'[show this help]'

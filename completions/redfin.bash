@@ -16,7 +16,7 @@ _redfin() {
 --min-price --max-price --min-beds --max-beds --min-baths \
 --min-sqft --max-sqft --min-year-built --max-year-built --max-hoa \
 --min-stories --status --property-types --tile --band-count \
---format --sort --limit -h --help"
+--format --no-url --sort --limit -h --help"
 
     # Numeric fields --sort accepts, plus their aliases.
     sort_fields="price beds baths sqft lot-size year-built year \

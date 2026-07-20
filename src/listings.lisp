@@ -74,9 +74,13 @@ required. STATUS 1 = active for-sale; 9 = active + coming-soon."
                 (%param "page_number" page)
                 (%param "min_price" min-price)
                 (%param "max_price" max-price)
-                (%param "min_num_beds" min-beds)
+                ;; Redfin's min-beds/min-baths params are num_beds/num_baths
+                ;; (NOT min_num_*); the endpoint silently ignores unknown
+                ;; params, so the wrong name means "no filter". Max beds is
+                ;; max_num_beds. Verified live against the gis-csv endpoint.
+                (%param "num_beds" min-beds)
                 (%param "max_num_beds" max-beds)
-                (%param "min_num_baths" min-baths)
+                (%param "num_baths" min-baths)
                 (%param "min_listing_approx_size" min-sqft)
                 (%param "max_listing_approx_size" max-sqft)
                 (%param "min_year_built" min-year-built)

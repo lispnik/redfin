@@ -106,15 +106,16 @@ Listings with a NIL value for the field always sort last."
                            (t nil)))))))
 
 (defun parse-args (args)
-  "Parse ARGS (a list of strings) into (values SEARCH-PLIST FORMAT LIMIT SORT).
+  "Parse ARGS into (values SEARCH-PLIST FORMAT LIMIT SORT NO-URL).
 SEARCH-PLIST is passed straight to REDFIN:SEARCH-LISTINGS. FORMAT is :table
 or :csv. LIMIT is NIL or a positive integer. SORT is NIL or a
-(ACCESSOR . DESCP) cons. Signals REDFIN-ERROR on bad input; prints usage and
-exits for --help."
+(ACCESSOR . DESCP) cons. NO-URL is true to omit the URL column from table
+output. Signals REDFIN-ERROR on bad input; prints usage and exits for --help."
   (let ((search '())
         (format :table)
         (limit nil)
-        (sort nil))
+        (sort nil)
+        (no-url nil))
     (loop while args
           for arg = (pop args)
           do (cond
@@ -123,6 +124,8 @@ exits for --help."
                 (uiop:quit 0))
                ((string= arg "--tile")
                 (setf search (list* :tile-when-capped t search)))
+               ((string= arg "--no-url")
+                (setf no-url t))
                ((string= arg "--format")
                 (let ((v (require-value arg (pop args))))
                   (setf format
@@ -151,7 +154,7 @@ exits for --help."
                                   (:int (parse-int flag raw))
                                   (:keywords (parse-keyword-list raw)))))
                       (setf search (list* key val search))))))))
-    (values search format limit sort)))
+    (values search format limit sort no-url)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Output
@@ -178,18 +181,24 @@ floats without CL's exponent noise (2.5d0 -> \"2.5\", 2.0d0 -> \"2\")."
                s)))
         (t (princ-to-string x))))
 
-(defun print-table (listings)
-  (let ((fmt "~13@a  ~4@a  ~5@a  ~7@a  ~28a  ~16a  ~a~%"))
-    (format t fmt "PRICE" "BEDS" "BATHS" "SQFT" "ADDRESS" "CITY" "URL")
+(defun print-table (listings &optional (show-url t))
+  ;; With the URL column, CITY takes a fixed width so URLs line up; without
+  ;; it, CITY is the last (unbounded) column.
+  (let ((fmt (if show-url
+                 "~13@a  ~4@a  ~5@a  ~7@a  ~28a  ~16a  ~a~%"
+                 "~13@a  ~4@a  ~5@a  ~7@a  ~28a  ~a~%")))
+    (apply #'format t fmt
+           (append '("PRICE" "BEDS" "BATHS" "SQFT" "ADDRESS" "CITY")
+                   (when show-url '("URL"))))
     (dolist (l listings)
-      (format t fmt
-              (fmt-price (redfin:listing-price l))
-              (cell (redfin:listing-beds l))
-              (cell (redfin:listing-baths l))
-              (cell (redfin:listing-sqft l))
-              (truncate-str (cell (redfin:listing-address l)) 28)
-              (cell (redfin:listing-city l))
-              (cell (redfin:listing-url l))))))
+      (apply #'format t fmt
+             (append (list (fmt-price (redfin:listing-price l))
+                           (cell (redfin:listing-beds l))
+                           (cell (redfin:listing-baths l))
+                           (cell (redfin:listing-sqft l))
+                           (truncate-str (cell (redfin:listing-address l)) 28)
+                           (cell (redfin:listing-city l)))
+                     (when show-url (list (cell (redfin:listing-url l)))))))))
 
 (defun csv-field (x)
   "Render X as a CSV field, quoting when it contains a comma, quote, or newline."
@@ -253,6 +262,7 @@ Filters:
 
 Output:
   --format table|csv     default table
+  --no-url               omit the URL column from table output
   --sort FIELD[:DIR]     sort by a field, DIR = asc (default) or desc; e.g.
                          --sort price:desc. Fields: price, beds, baths, sqft,
                          lot-size, year-built (year), days-on-market (dom),
@@ -274,7 +284,7 @@ Example:
 (defun main (args)
   "Run the CLI over ARGS (command-line arguments, program name excluded).
 Performs network requests to redfin.com."
-  (multiple-value-bind (search format limit sort) (parse-args args)
+  (multiple-value-bind (search format limit sort no-url) (parse-args args)
     (unless (or (getf search :location) (getf search :region-id))
       (error 'redfin:redfin-error
              :message "Provide --location or --region-id (try --help)"))
@@ -284,7 +294,7 @@ Performs network requests to redfin.com."
       (when (and limit (> (length listings) limit))
         (setf listings (subseq listings 0 limit)))
       (ecase format
-        (:table (print-table listings))
+        (:table (print-table listings (not no-url)))
         (:csv (print-csv listings)))
       (format *error-output* "~&~d listing~:p~%" (length listings)))))
 
