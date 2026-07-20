@@ -41,6 +41,14 @@
    #:*cache-directory*
    #:cache-dir
    #:clear-cache
+   ;; commute times (Mapbox)
+   #:*mapbox-token*
+   #:*commute-sample-times*
+   #:commute-target
+   #:commute-target-label
+   #:resolve-commute-target
+   #:weekday-departures
+   #:listing-commute
    ;; conditions
    #:redfin-error
    #:redfin-error-message

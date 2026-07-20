@@ -114,6 +114,7 @@ REDFIN:SEARCH-LISTINGS. OPTS is a plist of output/runtime options:
   :no-url    true to omit the URL column from table output
   :no-cache  true to bypass the on-disk response cache
   :cache-ttl NIL or a non-negative integer (override cache freshness seconds)
+  :commute-tos list of destination strings (--commute-to), in order
 Signals REDFIN-ERROR on bad input. Prints usage and exits for --help; clears
 the cache and exits for --clear-cache."
   (let ((search '())
@@ -122,7 +123,8 @@ the cache and exits for --clear-cache."
         (sort nil)
         (no-url nil)
         (no-cache nil)
-        (cache-ttl nil))
+        (cache-ttl nil)
+        (commute-tos '()))
     (loop while args
           for arg = (pop args)
           do (cond
@@ -144,6 +146,8 @@ the cache and exits for --clear-cache."
                   (when (minusp n)
                     (error 'redfin:redfin-error :message "--cache-ttl must be >= 0"))
                   (setf cache-ttl n)))
+               ((string= arg "--commute-to")
+                (push (require-value arg (pop args)) commute-tos))
                ((string= arg "--format")
                 (let ((v (require-value arg (pop args))))
                   (setf format
@@ -174,7 +178,8 @@ the cache and exits for --clear-cache."
                       (setf search (list* key val search))))))))
     (values search (list :format format :limit limit :sort sort
                          :no-url no-url :no-cache no-cache
-                         :cache-ttl cache-ttl))))
+                         :cache-ttl cache-ttl
+                         :commute-tos (nreverse commute-tos)))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Output
@@ -201,24 +206,59 @@ floats without CL's exponent noise (2.5d0 -> \"2.5\", 2.0d0 -> \"2\")."
                s)))
         (t (princ-to-string x))))
 
-(defun print-table (listings &optional (show-url t))
-  ;; With the URL column, CITY takes a fixed width so URLs line up; without
-  ;; it, CITY is the last (unbounded) column.
-  (let ((fmt (if show-url
-                 "~13@a  ~4@a  ~5@a  ~7@a  ~28a  ~16a  ~a~%"
-                 "~13@a  ~4@a  ~5@a  ~7@a  ~28a  ~a~%")))
-    (apply #'format t fmt
-           (append '("PRICE" "BEDS" "BATHS" "SQFT" "ADDRESS" "CITY")
-                   (when show-url '("URL"))))
-    (dolist (l listings)
-      (apply #'format t fmt
-             (append (list (fmt-price (redfin:listing-price l))
-                           (cell (redfin:listing-beds l))
-                           (cell (redfin:listing-baths l))
-                           (cell (redfin:listing-sqft l))
-                           (truncate-str (cell (redfin:listing-address l)) 28)
-                           (cell (redfin:listing-city l)))
-                     (when show-url (list (cell (redfin:listing-url l)))))))))
+(defun pad (s width align)
+  "Return string S padded to WIDTH (NIL = leave as-is). ALIGN is :left or
+:right. Longer strings are returned unchanged (truncate beforehand)."
+  (let ((s (princ-to-string s)))
+    (cond ((or (null width) (>= (length s) width)) s)
+          ((eq align :right)
+           (concatenate 'string
+                        (make-string (- width (length s)) :initial-element #\Space) s))
+          (t (concatenate 'string s
+                          (make-string (- width (length s)) :initial-element #\Space))))))
+
+(defun fmt-commute (mcell)
+  "Format a commute cell -- a (MEAN-MIN . SD-MIN) cons or NIL -- as \"23±5\"
+(minutes), or \"-\" when unknown."
+  (if mcell (format nil "~d±~d" (car mcell) (cdr mcell)) "-"))
+
+(defun commute-col-width (label)
+  (max 7 (min 18 (length label))))
+
+(defun print-table (listings &key (show-url t) commute-labels commute-cells)
+  "Print LISTINGS as an aligned table. COMMUTE-LABELS are the destination
+column headers; COMMUTE-CELLS is a per-listing list of per-destination cells
+(each a (MEAN-MIN . SD-MIN) cons or NIL). With any trailing column (commute or
+URL) CITY is fixed-width so columns line up; otherwise CITY is the last,
+unbounded column."
+  (let* ((widths (mapcar #'commute-col-width commute-labels))
+         (trailing (or commute-labels show-url))
+         (city-width (when trailing 16)))
+    (flet ((emit (price beds baths sqft address city commutes url)
+             (let ((cols (list (pad price 13 :right)
+                               (pad beds 4 :right)
+                               (pad baths 5 :right)
+                               (pad sqft 7 :right)
+                               (pad (truncate-str address 28) 28 :left)
+                               (pad (truncate-str city (or city-width 999))
+                                    city-width :left))))
+               (loop for c in commutes for w in widths
+                     do (setf cols (append cols (list (pad c w :right)))))
+               (when url (setf cols (append cols (list url))))
+               (format t "~{~a~^  ~}~%" cols))))
+      (emit "PRICE" "BEDS" "BATHS" "SQFT" "ADDRESS" "CITY"
+            (mapcar (lambda (lbl w) (truncate-str lbl w)) commute-labels widths)
+            (when show-url "URL"))
+      (loop for l in listings
+            for cc in (or commute-cells (make-list (length listings)))
+            do (emit (fmt-price (redfin:listing-price l))
+                     (cell (redfin:listing-beds l))
+                     (cell (redfin:listing-baths l))
+                     (cell (redfin:listing-sqft l))
+                     (cell (redfin:listing-address l))
+                     (cell (redfin:listing-city l))
+                     (mapcar #'fmt-commute cc)
+                     (when show-url (cell (redfin:listing-url l))))))))
 
 (defun csv-field (x)
   "Render X as a CSV field, quoting when it contains a comma, quote, or newline."
@@ -232,25 +272,36 @@ floats without CL's exponent noise (2.5d0 -> \"2.5\", 2.0d0 -> \"2\")."
           (write-char #\" o))
         s)))
 
-(defun print-csv (listings)
-  (format t "~&price,beds,baths,sqft,address,city,state,zip,year_built,~
-             days_on_market,hoa,mls,url~%")
-  (dolist (l listings)
-    (format t "~{~a~^,~}~%"
-            (mapcar #'csv-field
-                    (list (redfin:listing-price l)
-                          (redfin:listing-beds l)
-                          (redfin:listing-baths l)
-                          (redfin:listing-sqft l)
-                          (redfin:listing-address l)
-                          (redfin:listing-city l)
-                          (redfin:listing-state l)
-                          (redfin:listing-zip l)
-                          (redfin:listing-year-built l)
-                          (redfin:listing-days-on-market l)
-                          (redfin:listing-hoa l)
-                          (redfin:listing-mls l)
-                          (redfin:listing-url l))))))
+(defun print-csv (listings &key commute-labels commute-cells)
+  "Print LISTINGS as CSV. Each commute destination adds two columns,
+\"<label> mean (min)\" and \"<label> sd (min)\"."
+  (let ((header (append '("price" "beds" "baths" "sqft" "address" "city"
+                          "state" "zip" "year_built" "days_on_market"
+                          "hoa" "mls" "url")
+                        (loop for lbl in commute-labels
+                              append (list (format nil "~a mean (min)" lbl)
+                                           (format nil "~a sd (min)" lbl))))))
+    (format t "~&~{~a~^,~}~%" (mapcar #'csv-field header)))
+  (loop for l in listings
+        for cc in (or commute-cells (make-list (length listings)))
+        do (let ((fields (list (redfin:listing-price l)
+                               (redfin:listing-beds l)
+                               (redfin:listing-baths l)
+                               (redfin:listing-sqft l)
+                               (redfin:listing-address l)
+                               (redfin:listing-city l)
+                               (redfin:listing-state l)
+                               (redfin:listing-zip l)
+                               (redfin:listing-year-built l)
+                               (redfin:listing-days-on-market l)
+                               (redfin:listing-hoa l)
+                               (redfin:listing-mls l)
+                               (redfin:listing-url l))))
+             (dolist (mcell cc)
+               (setf fields (append fields
+                                    (list (if mcell (car mcell) "")
+                                          (if mcell (cdr mcell) "")))))
+             (format t "~{~a~^,~}~%" (mapcar #'csv-field fields)))))
 
 (defun print-usage ()
   (format t "~
@@ -291,6 +342,12 @@ Output:
   --limit N              show at most N listings
   -h, --help             show this help
 
+Commute (Mapbox; needs a token in MAPBOX_TOKEN):
+  --commute-to LOCATION  add a commute-time column to LOCATION (repeatable).
+                         Shows weekday mean±sd travel time in minutes, sampled
+                         across the morning peak via Mapbox driving traffic.
+                         The column is labeled with a short form of LOCATION.
+
 Cache (identical requests are served from an on-disk cache by default):
   --no-cache             bypass the cache for this run (always hit the network)
   --cache-ttl SECONDS    treat cached entries older than SECONDS as stale
@@ -324,10 +381,39 @@ Performs network requests to redfin.com."
           (setf listings (sort-listings listings (car sort) (cdr sort))))
         (when (and limit (> (length listings) limit))
           (setf listings (subseq listings 0 limit)))
-        (ecase (getf opts :format)
-          (:table (print-table listings (not (getf opts :no-url))))
-          (:csv (print-csv listings)))
+        (multiple-value-bind (commute-labels commute-cells)
+            (compute-commutes listings (getf opts :commute-tos))
+          (ecase (getf opts :format)
+            (:table (print-table listings
+                                 :show-url (not (getf opts :no-url))
+                                 :commute-labels commute-labels
+                                 :commute-cells commute-cells))
+            (:csv (print-csv listings
+                             :commute-labels commute-labels
+                             :commute-cells commute-cells))))
         (format *error-output* "~&~d listing~:p~%" (length listings))))))
+
+(defun compute-commutes (listings commute-tos)
+  "Resolve each COMMUTE-TOS destination and compute per-listing commute cells.
+Returns (values LABELS CELLS): LABELS is a list of destination column labels;
+CELLS is a per-listing list of per-destination (MEAN-MIN . SD-MIN) conses (or
+NIL). Returns (values NIL NIL) when COMMUTE-TOS is empty."
+  (when commute-tos
+    (let ((targets (mapcar #'redfin:resolve-commute-target commute-tos))
+          (departures (redfin:weekday-departures)))
+      (format *error-output*
+              "~&Computing commute times (~d listing~:p × ~d destination~:p, ~
+               weekday mornings, mean±sd minutes)...~%"
+              (length listings) (length targets))
+      (values
+       (mapcar #'redfin:commute-target-label targets)
+       (mapcar (lambda (l)
+                 (mapcar (lambda (target)
+                           (multiple-value-bind (mean sd)
+                               (redfin:listing-commute l target :departures departures)
+                             (when mean (cons (round mean) (round (or sd 0))))))
+                         targets))
+               listings)))))
 
 (defun first-line (string)
   "The first line of STRING, so error reports don't dump multi-line HTML

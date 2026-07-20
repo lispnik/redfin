@@ -311,6 +311,59 @@
     (is (null (redfin::cache-get "http://u/a")))))
 
 ;;; ---------------------------------------------------------------------------
+;;; Commute (Mapbox) -- pure logic, offline
+;;; ---------------------------------------------------------------------------
+
+(test commute-mean-stddev
+  (multiple-value-bind (mean sd n) (redfin::mean-stddev '(10 20 30))
+    (is (= 20 mean))
+    (is (< (abs (- 10 sd)) 1d-9))          ; sample stddev (n-1)
+    (is (= 3 n)))
+  (multiple-value-bind (mean sd n) (redfin::mean-stddev '(42))
+    (is (= 42 mean)) (is (= 0 sd)) (is (= 1 n)))
+  (multiple-value-bind (mean sd n) (redfin::mean-stddev '())
+    (is (null mean)) (is (null sd)) (is (= 0 n))))
+
+(test commute-simplify-label
+  (is (string= "1600 Amphitheatre Parkway"
+               (redfin::simplify-commute-label
+                "1600 Amphitheatre Parkway, Mountain View, CA")))
+  (is (string= "Downtown Austin"
+               (redfin::simplify-commute-label "  Downtown Austin  ")))
+  (is (string= "78704" (redfin::simplify-commute-label "78704"))))
+
+(test commute-parse-geocode
+  (multiple-value-bind (lon lat)
+      (redfin::parse-geocode
+       "{\"type\":\"FeatureCollection\",\"features\":[{\"geometry\":{\"type\":\"Point\",\"coordinates\":[-97.74,30.27]}}]}")
+    (is (< (abs (- -97.74d0 lon)) 1d-6))
+    (is (< (abs (- 30.27d0 lat)) 1d-6)))
+  ;; no features -> NIL
+  (is (null (redfin::parse-geocode "{\"features\":[]}"))))
+
+(test commute-parse-duration
+  (is (< (abs (- 1234.5 (redfin::parse-duration
+                         "{\"code\":\"Ok\",\"routes\":[{\"duration\":1234.5}]}")))
+         1d-6))
+  (is (null (redfin::parse-duration "{\"code\":\"NoRoute\",\"routes\":[]}")))
+  (is (null (redfin::parse-duration "{\"code\":\"Ok\",\"routes\":[]}"))))
+
+(test commute-weekday-departures-skips-weekend
+  ;; 2024-05-18 is a Saturday -> next weekday is Monday 2024-05-20.
+  (let ((sat (encode-universal-time 0 0 12 18 5 2024)))
+    (multiple-value-bind (y mo d) (redfin::next-weekday-date sat)
+      (is (= 2024 y)) (is (= 5 mo)) (is (= 20 d)))
+    (is (equal '("2024-05-20T07:00" "2024-05-20T08:30")
+               (redfin::weekday-departures sat '("07:00" "08:30"))))))
+
+(test commute-listing-without-coords-is-empty
+  ;; No network: a listing missing lat/lon returns no commute.
+  (let ((l (redfin::make-listing :latitude nil :longitude nil))
+        (tgt (redfin::%make-commute-target :label "X" :lon -97.7 :lat 30.2)))
+    (multiple-value-bind (mean sd n) (redfin:listing-commute l tgt)
+      (is (null mean)) (is (null sd)) (is (= 0 n)))))
+
+;;; ---------------------------------------------------------------------------
 ;;; Optional live test (network). Enabled only when REDFIN_LIVE_TESTS is set,
 ;;; so CI and offline runs stay green.
 ;;; ---------------------------------------------------------------------------

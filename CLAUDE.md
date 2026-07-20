@@ -20,13 +20,21 @@ and never commit scraped listing data to the repo.
   shared `http-get` / user-agent / `strip-guard` helpers.
 - `src/listings.lisp` — query building, CSV parsing, the `listing` struct,
   `search-listings`, and `tile-by-price`.
+- `src/commute.lisp` — Mapbox-based weekday commute-time estimates
+  (`resolve-commute-target`, `listing-commute`): geocode a destination, sample
+  the driving-traffic Directions API across weekday departures, return
+  mean/stddev minutes. Pure helpers (`parse-geocode`, `parse-duration`,
+  `mean-stddev`, `weekday-departures`) are split out for offline tests. Loads
+  last (uses `http-get`, `parse-json`/`jget`, and the `listing` accessors).
 - `src/cli.lisp` — the standalone CLI (`redfin/cli` package + system): arg
   parsing, table/CSV output, and the `toplevel` executable entry point.
 - `tests/main.lisp` — FiveAM suite.
 
-The core library files (`package → cache → regions → listings`) load
+The core library files (`package → cache → regions → listings → commute`) load
 `:serial t`; keep that order, since `http-get` in `regions` calls the cache
-helpers and `listings` uses conditions/helpers from `regions`.
+helpers, `listings` uses conditions/helpers from `regions`, and `commute` uses
+all of the above. Commute needs a Mapbox token in `MAPBOX_TOKEN` /
+`MAPBOX_ACCESS_TOKEN` (or `redfin:*mapbox-token*`).
 `cli.lisp` is a *separate* system (`:redfin/cli`, depends on `:redfin`) so the
 library stays free of CLI concerns — don't fold it into the `:redfin` system.
 

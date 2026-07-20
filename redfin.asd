@@ -16,7 +16,8 @@
                 :components ((:file "package")
                              (:file "cache")
                              (:file "regions")
-                             (:file "listings"))))
+                             (:file "listings")
+                             (:file "commute"))))
   :in-order-to ((test-op (test-op #:redfin/tests))))
 
 (asdf:defsystem #:redfin/cli

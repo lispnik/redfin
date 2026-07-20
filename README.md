@@ -87,6 +87,32 @@ the ten priciest. Sortable fields: `price`, `beds`, `baths`, `sqft`,
 (`ppsf`), `hoa`; listings missing that field sort last. See
 `bin/redfin --help` for the full option list.
 
+### Commute times
+
+Add a weekday commute-time column per destination with `--commute-to` (repeat
+it for several destinations). Each destination is geocoded via Mapbox, then the
+driving-traffic Directions API is sampled across the morning peak; the column
+shows **mean±sd travel time in minutes** and is labeled with a short form of
+the destination (its first comma-separated segment).
+
+```sh
+export MAPBOX_TOKEN=pk....
+bin/redfin --region-id 30818 --min-price 500000 --max-price 700000 \
+  --min-beds 3 --limit 20 \
+  --commute-to "Downtown Austin, TX" --commute-to "The Domain, Austin, TX"
+```
+
+```
+        PRICE  BEDS  BATHS     SQFT  ADDRESS               CITY    Downtown Austin  The Domain  URL
+     $620,000     3    2.5     1800  123 Test St           Austin             25±4        42±2  https://...
+```
+
+Needs a free Mapbox token in `MAPBOX_TOKEN` (or `MAPBOX_ACCESS_TOKEN`).
+Commute calls go through the same cache, and the sample times are tunable via
+`redfin:*commute-sample-times*`. Note the std dev reflects time-of-day
+variation across the sampled departures, not day-to-day reliability. Commute
+lookups are per displayed listing, so combine with `--limit`.
+
 ### Response caching
 
 Identical requests are served from an on-disk cache (default
