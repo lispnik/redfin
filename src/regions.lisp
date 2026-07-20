@@ -11,8 +11,13 @@
                      (redfin-error-message c)))))
 
 (defparameter +user-agent+
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ~
-   (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+  ;; A plain string literal -- NOT a format control -- so no ~ directives:
+  ;; concatenate rather than a "~<newline>" continuation, which would leave a
+  ;; literal newline in the value and produce an illegal (line-folded) header.
+  (concatenate 'string
+               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+               "AppleWebKit/537.36 (KHTML, like Gecko) "
+               "Chrome/120.0 Safari/537.36")
   "Redfin rejects default library user-agents; send a browser-like one.")
 
 (defparameter +autocomplete-url+

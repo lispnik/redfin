@@ -15,6 +15,13 @@
 (test strip-guard-leaves-plain-csv
   (is (string= "A,B,C" (redfin::strip-guard "A,B,C"))))
 
+(test user-agent-is-a-valid-header-value
+  ;; No CR/LF: an embedded newline makes an illegal (line-folded) header that
+  ;; strict servers (e.g. Mapbox) reject with HTTP 400.
+  (is (null (find #\Newline redfin::+user-agent+)))
+  (is (null (find #\Return redfin::+user-agent+)))
+  (is (null (find #\~ redfin::+user-agent+))))
+
 (test strip-guard-handles-short-input
   (is (string= "" (redfin::strip-guard "")))
   (is (string= "{}" (redfin::strip-guard "{}"))))
