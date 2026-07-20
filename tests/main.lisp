@@ -188,6 +188,45 @@
   (is (null (redfin::slot-for-column "SOME NEW COLUMN"))))
 
 ;;; ---------------------------------------------------------------------------
+;;; CLI --sort
+;;; ---------------------------------------------------------------------------
+
+(test cli-parse-sort-defaults-ascending
+  (multiple-value-bind (acc descp) (redfin/cli::parse-sort "--sort" "price")
+    (is (functionp acc))
+    (is (null descp))))
+
+(test cli-parse-sort-desc
+  (multiple-value-bind (acc descp) (redfin/cli::parse-sort "--sort" "price:desc")
+    (declare (ignore acc))
+    (is (eq t descp))))
+
+(test cli-parse-sort-alias
+  (multiple-value-bind (acc descp) (redfin/cli::parse-sort "--sort" "ppsf")
+    (declare (ignore descp))
+    (is (eq acc #'redfin:listing-price-per-sqft))))
+
+(test cli-parse-sort-unknown-field-signals
+  (signals redfin:redfin-error
+    (redfin/cli::parse-sort "--sort" "bogus")))
+
+(test cli-parse-sort-bad-direction-signals
+  (signals redfin:redfin-error
+    (redfin/cli::parse-sort "--sort" "price:sideways")))
+
+(test cli-sort-listings-orders-with-nils-last
+  (let* ((a (redfin::make-listing :price 500000))
+         (b (redfin::make-listing :price 300000))
+         (c (redfin::make-listing :price nil))
+         (asc  (redfin/cli::sort-listings (list a c b)
+                                          #'redfin:listing-price nil))
+         (desc (redfin/cli::sort-listings (list a c b)
+                                          #'redfin:listing-price t)))
+    (is (equal '(300000 500000 nil) (mapcar #'redfin:listing-price asc)))
+    ;; descending among present values; NIL still sorts last
+    (is (equal '(500000 300000 nil) (mapcar #'redfin:listing-price desc)))))
+
+;;; ---------------------------------------------------------------------------
 ;;; Optional live test (network). Enabled only when REDFIN_LIVE_TESTS is set,
 ;;; so CI and offline runs stay green.
 ;;; ---------------------------------------------------------------------------

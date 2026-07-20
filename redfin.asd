@@ -35,6 +35,7 @@
 (asdf:defsystem #:redfin/tests
   :description "FiveAM test suite for REDFIN."
   :depends-on (#:redfin
+               #:redfin/cli
                #:fiveam)
   :serial t
   :components ((:module "tests"

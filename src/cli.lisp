@@ -56,14 +56,65 @@
           (remove "" (uiop:split-string string :separator ",")
                   :test #'string=)))
 
+;;; Numeric fields --sort can order by; some have short aliases.
+(defparameter *sort-keys*
+  (list (cons "price"          #'redfin:listing-price)
+        (cons "beds"           #'redfin:listing-beds)
+        (cons "baths"          #'redfin:listing-baths)
+        (cons "sqft"           #'redfin:listing-sqft)
+        (cons "lot-size"       #'redfin:listing-lot-size)
+        (cons "year-built"     #'redfin:listing-year-built)
+        (cons "year"           #'redfin:listing-year-built)
+        (cons "days-on-market" #'redfin:listing-days-on-market)
+        (cons "dom"            #'redfin:listing-days-on-market)
+        (cons "price-per-sqft" #'redfin:listing-price-per-sqft)
+        (cons "ppsf"           #'redfin:listing-price-per-sqft)
+        (cons "hoa"            #'redfin:listing-hoa)))
+
+(defparameter +sort-field-help+
+  ;; A plain string (spliced via ~a into error text), so no ~ directives here.
+  "price, beds, baths, sqft, lot-size, year-built (year), days-on-market (dom), price-per-sqft (ppsf), hoa")
+
+(defun parse-sort (opt value)
+  "Parse a --sort spec like \"price\" or \"price:desc\" into
+(values ACCESSOR DESCP). Direction defaults to ascending."
+  (let* ((colon (position #\: value))
+         (field (string-downcase (if colon (subseq value 0 colon) value)))
+         (dir (and colon (string-downcase (subseq value (1+ colon)))))
+         (accessor (cdr (assoc field *sort-keys* :test #'string=))))
+    (unless accessor
+      (error 'redfin:redfin-error
+             :message (format nil "Unknown ~a field ~s (want one of: ~a)"
+                              opt field +sort-field-help+)))
+    (values accessor
+            (cond ((or (null dir) (string= dir "asc")) nil)
+                  ((string= dir "desc") t)
+                  (t (error 'redfin:redfin-error
+                            :message (format nil "~a direction must be asc or desc, got ~s"
+                                             opt dir)))))))
+
+(defun sort-listings (listings accessor descp)
+  "Return LISTINGS sorted by ACCESSOR (ascending, or descending when DESCP).
+Listings with a NIL value for the field always sort last."
+  (let ((cmp (if descp #'> #'<)))
+    (stable-sort (copy-list listings)
+                 (lambda (a b)
+                   (let ((x (funcall accessor a))
+                         (y (funcall accessor b)))
+                     (cond ((and x y) (funcall cmp x y))
+                           (x t)        ; present sorts before missing
+                           (t nil)))))))
+
 (defun parse-args (args)
-  "Parse ARGS (a list of strings) into (values SEARCH-PLIST FORMAT LIMIT).
+  "Parse ARGS (a list of strings) into (values SEARCH-PLIST FORMAT LIMIT SORT).
 SEARCH-PLIST is passed straight to REDFIN:SEARCH-LISTINGS. FORMAT is :table
-or :csv. LIMIT is NIL or a positive integer. Signals REDFIN-ERROR on bad
-input; prints usage and exits for --help."
+or :csv. LIMIT is NIL or a positive integer. SORT is NIL or a
+(ACCESSOR . DESCP) cons. Signals REDFIN-ERROR on bad input; prints usage and
+exits for --help."
   (let ((search '())
         (format :table)
-        (limit nil))
+        (limit nil)
+        (sort nil))
     (loop while args
           for arg = (pop args)
           do (cond
@@ -84,6 +135,10 @@ input; prints usage and exits for --help."
                   (when (minusp n)
                     (error 'redfin:redfin-error :message "--limit must be >= 0"))
                   (setf limit n)))
+               ((string= arg "--sort")
+                (multiple-value-bind (accessor descp)
+                    (parse-sort arg (require-value arg (pop args)))
+                  (setf sort (cons accessor descp))))
                (t
                 (let ((spec (assoc arg *options* :test #'string=)))
                   (unless spec
@@ -96,7 +151,7 @@ input; prints usage and exits for --help."
                                   (:int (parse-int flag raw))
                                   (:keywords (parse-keyword-list raw)))))
                       (setf search (list* key val search))))))))
-    (values search format limit)))
+    (values search format limit sort)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Output
@@ -197,12 +252,18 @@ Filters:
 
 Output:
   --format table|csv     default table
+  --sort FIELD[:DIR]     sort by a field, DIR = asc (default) or desc; e.g.
+                         --sort price:desc. Fields: price, beds, baths, sqft,
+                         lot-size, year-built (year), days-on-market (dom),
+                         price-per-sqft (ppsf), hoa. Applied before --limit,
+                         so it doubles as a top-N. Missing values sort last.
   --limit N              show at most N listings
   -h, --help             show this help
 
 Example:
   redfin --location \"Austin, TX\" --min-price 500000 --max-price 760000 \\
-         --min-beds 3 --min-baths 2 --property-types house,condo,townhouse
+         --min-beds 3 --min-baths 2 --property-types house,condo,townhouse \\
+         --sort price:desc --limit 20
 "))
 
 ;;; ---------------------------------------------------------------------------
@@ -212,11 +273,13 @@ Example:
 (defun main (args)
   "Run the CLI over ARGS (command-line arguments, program name excluded).
 Performs network requests to redfin.com."
-  (multiple-value-bind (search format limit) (parse-args args)
+  (multiple-value-bind (search format limit sort) (parse-args args)
     (unless (or (getf search :location) (getf search :region-id))
       (error 'redfin:redfin-error
              :message "Provide --location or --region-id (try --help)"))
     (let ((listings (apply #'redfin:search-listings search)))
+      (when sort
+        (setf listings (sort-listings listings (car sort) (cdr sort))))
       (when (and limit (> (length listings) limit))
         (setf listings (subseq listings 0 limit)))
       (ecase format

@@ -77,7 +77,13 @@ bin/redfin --location "Austin, TX" \
 
 Output is a table by default, or CSV with `--format csv`. Pass a location with
 `--location` (free text or zip) or an explicit `--region-id` (with optional
-`--region-type`). Add `--tile` with a price range to beat the 350-row cap. See
+`--region-type`). Add `--tile` with a price range to beat the 350-row cap.
+
+Sort with `--sort FIELD[:asc|:desc]` (default ascending), applied before
+`--limit` so it doubles as a top-N — e.g. `--sort price:desc --limit 10` for
+the ten priciest. Sortable fields: `price`, `beds`, `baths`, `sqft`,
+`lot-size`, `year-built` (`year`), `days-on-market` (`dom`), `price-per-sqft`
+(`ppsf`), `hoa`; listings missing that field sort last. See
 `bin/redfin --help` for the full option list.
 
 ### Listing slots
