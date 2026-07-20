@@ -179,8 +179,8 @@ floats without CL's exponent noise (2.5d0 -> \"2.5\", 2.0d0 -> \"2\")."
         (t (princ-to-string x))))
 
 (defun print-table (listings)
-  (let ((fmt "~13@a  ~4@a  ~5@a  ~7@a  ~28a  ~a~%"))
-    (format t fmt "PRICE" "BEDS" "BATHS" "SQFT" "ADDRESS" "CITY")
+  (let ((fmt "~13@a  ~4@a  ~5@a  ~7@a  ~28a  ~16a  ~a~%"))
+    (format t fmt "PRICE" "BEDS" "BATHS" "SQFT" "ADDRESS" "CITY" "URL")
     (dolist (l listings)
       (format t fmt
               (fmt-price (redfin:listing-price l))
@@ -188,7 +188,8 @@ floats without CL's exponent noise (2.5d0 -> \"2.5\", 2.0d0 -> \"2\")."
               (cell (redfin:listing-baths l))
               (cell (redfin:listing-sqft l))
               (truncate-str (cell (redfin:listing-address l)) 28)
-              (cell (redfin:listing-city l))))))
+              (cell (redfin:listing-city l))
+              (cell (redfin:listing-url l))))))
 
 (defun csv-field (x)
   "Render X as a CSV field, quoting when it contains a comma, quote, or newline."
