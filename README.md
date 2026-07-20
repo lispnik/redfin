@@ -59,6 +59,27 @@ Redfin returns at most 350 rows per request. For dense areas, pass
   :tile-when-capped t :band-count 12)
 ```
 
+## Command-line tool
+
+Build a standalone binary (SBCL `program-op`; lands in `bin/`, which is
+gitignored):
+
+```sh
+make build          # -> bin/redfin
+```
+
+```sh
+bin/redfin --location "Austin, TX" \
+  --min-price 500000 --max-price 760000 \
+  --min-beds 3 --min-baths 2 \
+  --property-types house,condo,townhouse --limit 20
+```
+
+Output is a table by default, or CSV with `--format csv`. Pass a location with
+`--location` (free text or zip) or an explicit `--region-id` (with optional
+`--region-type`). Add `--tile` with a price range to beat the 350-row cap. See
+`bin/redfin --help` for the full option list.
+
 ### Listing slots
 
 `sale-type property-type address city state zip price beds baths sqft

@@ -114,6 +114,10 @@
    "$/SQUARE FEET,HOA/MONTH,LATITUDE,LONGITUDE,MLS#,"
    "URL (SEE https://www.redfin.com/buy-a-home/comparative-market-analysis FOR INFO ON PRICING)"
    (string #\Newline)
+   ;; Redfin inserts this one-column disclaimer note right after the header.
+   ;; It is a single quoted field (it contains a comma), exactly as returned.
+   "\"In accordance with local MLS rules, some MLS listings are not included in the download\""
+   (string #\Newline)
    "MLS Listing,Single Family Residential,123 Main St,Austin,TX,78704,"
    "650000,3,2,1800,7000,1995,12,361,0,30.2500,-97.7500,ACT1234,"
    "https://www.redfin.com/TX/Austin/123-Main-St-78704/home/12345"
@@ -125,7 +129,14 @@
 
 (test parse-csv-row-count
   (let ((listings (redfin::parse-csv +sample-csv+)))
+    ;; two real listings; the one-column disclaimer note is skipped
     (is (= 2 (length listings)))))
+
+(test parse-csv-skips-disclaimer-note
+  ;; The first parsed listing must be the real row, not the MLS-rules note.
+  (let ((l (first (redfin::parse-csv +sample-csv+))))
+    (is (string= "123 Main St" (redfin:listing-address l)))
+    (is (string= "MLS Listing" (redfin:listing-sale-type l)))))
 
 (test parse-csv-fields
   (let ((l (first (redfin::parse-csv +sample-csv+))))

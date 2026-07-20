@@ -12,16 +12,20 @@ and never commit scraped listing data to the repo.
 
 ## Layout
 
-- `redfin.asd` — system definitions: `:redfin` and `:redfin/tests`.
+- `redfin.asd` — system definitions: `:redfin`, `:redfin/cli`, `:redfin/tests`.
 - `src/package.lisp` — package + exports. Add new public symbols here.
 - `src/regions.lisp` — `resolve-region`, the `redfin-error` condition, and the
   shared `http-get` / user-agent / `strip-guard` helpers.
 - `src/listings.lisp` — query building, CSV parsing, the `listing` struct,
   `search-listings`, and `tile-by-price`.
+- `src/cli.lisp` — the standalone CLI (`redfin/cli` package + system): arg
+  parsing, table/CSV output, and the `toplevel` executable entry point.
 - `tests/main.lisp` — FiveAM suite.
 
-`src` files are `:serial t`: package → regions → listings. Keep that order;
-`listings` uses conditions and helpers defined in `regions`.
+The core library files (`package → regions → listings`) load `:serial t`;
+keep that order, since `listings` uses conditions/helpers from `regions`.
+`cli.lisp` is a *separate* system (`:redfin/cli`, depends on `:redfin`) so the
+library stays free of CLI concerns — don't fold it into the `:redfin` system.
 
 ## Environment
 
@@ -34,6 +38,8 @@ and never commit scraped listing data to the repo.
 ## Common commands
 
 - `make deps` — `ocicl install`.
+- `make build` — build the standalone CLI to `bin/redfin` via
+  `asdf:make :redfin/cli` (SBCL `program-op`; `bin/` is gitignored).
 - `make test` — run the offline FiveAM suite.
 - `make test-live` — run tests including the live network test
   (`REDFIN_LIVE_TESTS=1`). Hits redfin.com; needs a US IP.
@@ -70,6 +76,9 @@ and never commit scraped listing data to the repo.
 - Redfin prefixes JSON payloads with `{}&&` (anti-hijacking). `strip-guard`
   removes it; the `gis-csv` success path is raw CSV, but the *error* path
   returns guarded JSON — `parse-csv` detects that and signals `redfin-error`.
+- The gis-csv body has a one-column MLS-rules disclaimer row (a single quoted
+  field) right after the header. `data-row-p` skips it (and blank rows) in
+  `parse-csv` so it doesn't become an all-NIL phantom `listing`.
 - The endpoint caps results at 350 rows. `search-listings` with
   `:tile-when-capped t` splits a price range into bands to work around it.
 - The stingray endpoint is US-IP only and rate-limits by IP.

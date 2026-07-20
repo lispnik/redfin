@@ -181,6 +181,16 @@ symbols or NIL per column)."
                  (setf (slot-value l slot) value)))
     l))
 
+(defun data-row-p (row)
+  "True unless ROW is a blank line or Redfin's single-column MLS-rules
+disclaimer note (\"In accordance with local MLS rules, some MLS listings are
+not included in the download\"), which follows the header and would otherwise
+become an all-NIL phantom listing."
+  (and (> (length row) 1)
+       (some (lambda (cell)
+               (plusp (length (string-trim '(#\Space #\Tab #\Return) cell))))
+             row)))
+
 (defun parse-csv (body)
   "Parse gis-csv BODY into a list of LISTING structs. Signals REDFIN-ERROR if
 the body looks like a JSON error payload rather than CSV."
@@ -197,8 +207,9 @@ the body looks like a JSON error payload rather than CSV."
       (when (null rows)
         (return-from parse-csv nil))
       (let ((header (map 'vector #'slot-for-column (first rows))))
-        (mapcar (lambda (row) (row->listing header row))
-                (rest rows))))))
+        (loop for row in (rest rows)
+              when (data-row-p row)
+                collect (row->listing header row))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Fetch

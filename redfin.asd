@@ -18,6 +18,20 @@
                              (:file "listings"))))
   :in-order-to ((test-op (test-op #:redfin/tests))))
 
+(asdf:defsystem #:redfin/cli
+  :description "Standalone command-line interface for the redfin client."
+  :author "Matthew"
+  :license "MIT"
+  :version "0.1.0"
+  :depends-on (#:redfin)
+  :serial t
+  :components ((:module "src"
+                :components ((:file "cli"))))
+  ;; `asdf:make :redfin/cli` builds a standalone executable at bin/redfin.
+  :build-operation "program-op"
+  :build-pathname "bin/redfin"
+  :entry-point "redfin/cli:toplevel")
+
 (asdf:defsystem #:redfin/tests
   :description "FiveAM test suite for REDFIN."
   :depends-on (#:redfin

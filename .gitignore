@@ -7,6 +7,8 @@
 # ocicl-managed dependencies (fetched via `ocicl install`)
 /systems/
 /systems.csv
+/ocicl/
+/ocicl.csv
 
 # SBCL / build artifacts
 *.core

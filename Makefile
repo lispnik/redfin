@@ -1,10 +1,17 @@
 LISP ?= sbcl
 LOAD = --load setup.lisp
 
-.PHONY: deps test test-live repl clean
+.PHONY: deps build test test-live repl clean
 
 deps:
 	ocicl install
+
+# Build the standalone CLI binary at bin/redfin via the :redfin/cli
+# build-operation (program-op) defined in redfin.asd.
+build:
+	$(LISP) --non-interactive $(LOAD) \
+	  --eval '(asdf:make :redfin/cli)' \
+	  --eval '(uiop:quit 0)'
 
 # Offline test suite. Exits non-zero if any test fails.
 test:
