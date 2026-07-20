@@ -11,9 +11,9 @@ don't redistribute the data.
 
 ## Install
 
-Depends on `dexador`, `quri`, `cl-csv`, `yason`, `alexandria` — all in ocicl
-and Quicklisp. Drop this directory in your `local-projects` (or an ocicl
-systems dir) and:
+Depends on `dexador`, `quri`, `cl-csv`, `com.inuoe.jzon`, `alexandria` — all
+in ocicl and Quicklisp. Drop this directory in your `local-projects` (or an
+ocicl systems dir) and:
 
 ```lisp
 (asdf:load-system :redfin)

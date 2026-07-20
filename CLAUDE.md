@@ -35,8 +35,10 @@ library stays free of CLI concerns — don't fold it into the `:redfin` system.
 - SBCL + ocicl. `ocicl` manages dependencies (not Quicklisp here).
 - Run `ocicl install` in the repo root to fetch deps into `systems/` before
   first load; `setup.lisp` wires ocicl into the SBCL image.
-- Dependencies: `dexador`, `quri`, `cl-csv`, `yason`, `alexandria`, plus
-  `fiveam` for tests.
+- Dependencies: `dexador`, `quri`, `cl-csv`, `com.inuoe.jzon`, `alexandria`,
+  plus `fiveam` for tests. JSON parsing goes through the `parse-json` / `jget`
+  helpers in `regions.lisp`, not `com.inuoe.jzon:parse` directly — keep it that
+  way so the parser stays swappable in one place.
 
 ## Common commands
 

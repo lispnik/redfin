@@ -48,6 +48,22 @@ Remove it if present so the remainder can be parsed as JSON."
         (subseq body (length prefix))
         body)))
 
+;;; JSON parsing goes through jzon (com.inuoe.jzon). Objects come back as
+;;; hash-tables with string keys, arrays as vectors, and JSON null as the
+;;; symbol CL:NULL -- JGET normalizes that to NIL so an absent-or-null field
+;;; reads as false (matching the previous yason behavior). Keep all JSON
+;;; access behind these two helpers so the parser stays swappable in one place.
+(defun parse-json (string)
+  "Parse STRING as JSON and return the jzon representation."
+  (com.inuoe.jzon:parse string))
+
+(defun jget (object key)
+  "Value of string KEY in the JSON OBJECT (a hash-table), or NIL if OBJECT is
+not a hash-table, KEY is absent, or the value is JSON null."
+  (when (hash-table-p object)
+    (let ((value (gethash key object)))
+      (unless (eq value 'null) value))))
+
 (defun http-get (url &key parameters)
   "GET URL (with optional query PARAMETERS) using a browser user-agent and
 return the response body as a string. Signals REDFIN-ERROR on a non-2xx
@@ -87,31 +103,39 @@ second path segment, e.g. \"/city/30818/TX/Austin\" -> \"30818\"."
         (error 'redfin-error
                :message (format nil "No region id in ~s" url)))))
 
+(defun region-from-autocomplete (raw &optional location)
+  "Parse a location-autocomplete response body RAW into a REGION. Prefers the
+payload's exactMatch; otherwise falls back to the first section's first row.
+Signals REDFIN-ERROR if nothing matches (LOCATION, if given, is named in the
+message). Pure parsing -- no network -- so it is unit-testable offline."
+  (let* ((json (parse-json (strip-guard raw)))
+         (payload (jget json "payload"))
+         (exact (jget payload "exactMatch")))
+    (unless exact
+      ;; fall back to the first section's first row if no exactMatch
+      (let ((sections (jget payload "sections")))
+        (when (and sections (plusp (length sections)))
+          (let ((rows (jget (elt sections 0) "rows")))
+            (when (and rows (plusp (length rows)))
+              (setf exact (elt rows 0)))))))
+    (unless exact
+      (error 'redfin-error
+             :message (format nil "No region match~@[ for ~s~]" location)))
+    (let ((url (jget exact "url"))
+          (name (jget exact "name")))
+      (%make-region :id (region-id-from-url url)
+                    :type (region-type-from-url url)
+                    :name name
+                    :url url))))
+
 (defun resolve-region (location)
   "Resolve a free-text LOCATION (e.g. \"Austin, TX\" or a zip) to a REGION.
 Uses Redfin's location-autocomplete endpoint and parses the exact-match URL.
 
 This performs a network request to redfin.com and is subject to Redfin's
 terms of service; keep usage low-volume and personal."
-  (let* ((raw (http-get +autocomplete-url+
-                        :parameters `(("location" . ,location)
-                                      ("v" . "2"))))
-         (json (yason:parse (strip-guard raw)))
-         (payload (gethash "payload" json))
-         (exact (and payload (gethash "exactMatch" payload))))
-    (unless exact
-      ;; fall back to the first section's first row if no exactMatch
-      (let ((sections (and payload (gethash "sections" payload))))
-        (when (and sections (plusp (length sections)))
-          (let ((rows (gethash "rows" (elt sections 0))))
-            (when (and rows (plusp (length rows)))
-              (setf exact (elt rows 0)))))))
-    (unless exact
-      (error 'redfin-error
-             :message (format nil "No region match for ~s" location)))
-    (let ((url (gethash "url" exact))
-          (name (gethash "name" exact)))
-      (%make-region :id (region-id-from-url url)
-                    :type (region-type-from-url url)
-                    :name name
-                    :url url))))
+  (region-from-autocomplete
+   (http-get +autocomplete-url+
+             :parameters `(("location" . ,location)
+                           ("v" . "2")))
+   location))

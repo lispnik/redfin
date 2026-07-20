@@ -202,9 +202,9 @@ the body looks like a JSON error payload rather than CSV."
     ;; A gis-csv error path returns JSON (possibly guarded). Detect and raise.
     (when (and (plusp (length clean))
                (char= (char clean 0) #\{))
-      (let* ((json (ignore-errors (yason:parse clean)))
-             (msg (and (hash-table-p json) (gethash "errorMessage" json)))
-             (code (and (hash-table-p json) (gethash "resultCode" json))))
+      (let* ((json (ignore-errors (parse-json clean)))
+             (msg (jget json "errorMessage"))
+             (code (jget json "resultCode")))
         (error 'redfin-error :code code
                              :message (or msg "gis-csv returned JSON, not CSV"))))
     (let ((rows (cl-csv:read-csv clean)))

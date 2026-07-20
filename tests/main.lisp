@@ -90,6 +90,37 @@
     (redfin::region-type-from-url "/bogus/123/TX")))
 
 ;;; ---------------------------------------------------------------------------
+;;; JSON access (jzon) and autocomplete parsing
+;;; ---------------------------------------------------------------------------
+
+(test jget-maps-null-and-missing-to-nil
+  (let ((h (redfin::parse-json "{\"a\":1,\"b\":null}")))
+    (is (= 1 (redfin::jget h "a")))
+    (is (null (redfin::jget h "b")))          ; JSON null -> NIL
+    (is (null (redfin::jget h "missing")))    ; absent key -> NIL
+    (is (null (redfin::jget 42 "a")))))       ; non-object -> NIL
+
+(test region-from-autocomplete-exact-match
+  (let ((r (redfin::region-from-autocomplete
+            "{}&&{\"payload\":{\"exactMatch\":{\"url\":\"/city/30818/TX/Austin\",\"name\":\"Austin, TX\"},\"sections\":[]}}")))
+    (is (string= "30818" (redfin:region-id r)))
+    (is (= 6 (redfin:region-type r)))
+    (is (string= "Austin, TX" (redfin:region-name r)))))
+
+(test region-from-autocomplete-null-exactmatch-falls-back
+  ;; exactMatch is JSON null (jzon yields CL:NULL) -> must fall back to the
+  ;; first section's first row rather than treating null as a match.
+  (let ((r (redfin::region-from-autocomplete
+            "{\"payload\":{\"exactMatch\":null,\"sections\":[{\"rows\":[{\"url\":\"/zipcode/78704\",\"name\":\"78704\"}]}]}}")))
+    (is (string= "78704" (redfin:region-id r)))
+    (is (= 2 (redfin:region-type r)))))
+
+(test region-from-autocomplete-no-match-signals
+  (signals redfin:redfin-error
+    (redfin::region-from-autocomplete
+     "{\"payload\":{\"exactMatch\":null,\"sections\":[]}}")))
+
+;;; ---------------------------------------------------------------------------
 ;;; Number parsing
 ;;; ---------------------------------------------------------------------------
 

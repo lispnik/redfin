@@ -9,7 +9,7 @@
   :depends-on (#:dexador
                #:quri
                #:cl-csv
-               #:yason
+               #:com.inuoe.jzon
                #:alexandria)
   :components ((:module "src"
                 :serial t
