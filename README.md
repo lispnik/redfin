@@ -86,6 +86,26 @@ the ten priciest. Sortable fields: `price`, `beds`, `baths`, `sqft`,
 (`ppsf`), `hoa`; listings missing that field sort last. See
 `bin/redfin --help` for the full option list.
 
+### Shell completion
+
+Completion scripts for every flag (with value completion for `--sort`,
+`--format`, `--property-types`, `--status`, and `--region-type`) live in
+`completions/`.
+
+Bash — source it from `~/.bashrc`, or install into a bash-completion dir:
+
+```sh
+source /path/to/redfin/completions/redfin.bash
+```
+
+Zsh — put `_redfin` on your `$fpath` before `compinit`:
+
+```sh
+mkdir -p ~/.zsh/completions
+cp completions/_redfin ~/.zsh/completions/
+# in ~/.zshrc, before `compinit`:  fpath=(~/.zsh/completions $fpath)
+```
+
 ### Listing slots
 
 `sale-type property-type address city state zip price beds baths sqft

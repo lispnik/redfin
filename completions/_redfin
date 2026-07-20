@@ -1,0 +1,62 @@
+#compdef redfin
+#
+# zsh completion for the redfin CLI.
+#
+# Install: put this file (named `_redfin`) in a directory on your $fpath, e.g.
+#   mkdir -p ~/.zsh/completions
+#   cp completions/_redfin ~/.zsh/completions/
+#   # in ~/.zshrc, before `compinit`:
+#   fpath=(~/.zsh/completions $fpath)
+# then start a new shell (or run `compinit`).
+#
+# The option list mirrors *options* (and the extra flags) in src/cli.lisp;
+# keep the two in sync when adding a flag.
+
+_redfin() {
+  local state
+  local -a sort_fields ptypes
+  sort_fields=(price beds baths sqft lot-size year-built year \
+               days-on-market dom price-per-sqft ppsf hoa)
+  ptypes=(house condo townhouse multi-family land other manufactured co-op)
+
+  _arguments -s \
+    '--location[free-text place, e.g. "Austin, TX" or a zip]:location:' \
+    '--region-id[explicit Redfin region id, e.g. 30818]:region id:' \
+    '--region-type[region_type for --region-id]:region type:(1 2 3 4 5 6 7 8)' \
+    '--min-price[minimum price]:min price:' \
+    '--max-price[maximum price]:max price:' \
+    '--min-beds[minimum beds]:min beds:' \
+    '--max-beds[maximum beds]:max beds:' \
+    '--min-baths[minimum baths]:min baths:' \
+    '--min-sqft[minimum square feet]:min sqft:' \
+    '--max-sqft[maximum square feet]:max sqft:' \
+    '--min-year-built[minimum year built]:min year:' \
+    '--max-year-built[maximum year built]:max year:' \
+    '--max-hoa[maximum HOA/month]:max hoa:' \
+    '--min-stories[minimum stories]:min stories:' \
+    '--status[1 = active (default), 9 = active + coming soon]:status:(1 9)' \
+    '--property-types[comma-separated property types]:types:->ptypes' \
+    '--tile[split price range into bands to beat the 350-row cap]' \
+    '--band-count[number of price bands when --tile is set]:band count:' \
+    '--format[output format]:format:(table csv)' \
+    '--sort[sort by FIELD, direction asc or desc]:sort:->sort' \
+    '--limit[show at most N listings]:limit:' \
+    '(-h --help)'{-h,--help}'[show this help]'
+
+  case "$state" in
+    sort)
+      # After "field:", offer the direction; otherwise offer field names and
+      # append ":" so the direction can be completed next.
+      if compset -P '*:'; then
+        _values 'direction' asc desc
+      else
+        _values -S ':' 'sort field' $sort_fields
+      fi
+      ;;
+    ptypes)
+      _values -s ',' 'property type' $ptypes
+      ;;
+  esac
+}
+
+_redfin "$@"

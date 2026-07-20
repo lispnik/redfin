@@ -60,6 +60,9 @@ library stays free of CLI concerns — don't fold it into the `:redfin` system.
 - Query param names in `build-query-params` are reverse-engineered and can
   change; when adding a filter, add both the keyword arg and the mapping, and
   cover it with a test in `tests/main.lisp`.
+- The shell-completion scripts in `completions/` (`redfin.bash`, `_redfin`)
+  mirror the CLI's `*options*` and extra flags in `src/cli.lisp`. When you add
+  or rename a CLI flag, update both completion files too.
 
 ## Testing notes
 
