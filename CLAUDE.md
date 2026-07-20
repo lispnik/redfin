@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repo.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
 
@@ -62,6 +62,8 @@ and never commit scraped listing data to the repo.
 - Austin city is `region_id` 30818, `region_type` 6. Handy for live checks.
 - When changing the CSV parser, add a fixture row to `+sample-csv+` rather
   than relying on live data.
+- Run one test from the REPL with `(fiveam:run! 'redfin/tests::parse-csv-fields)`
+  (or `run` without the `!` to get the results object without a printed report).
 
 ## Gotchas
 

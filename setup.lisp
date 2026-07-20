@@ -11,6 +11,9 @@
       (global (merge-pathnames ".local/share/ocicl/ocicl-runtime.lisp"
                                (user-homedir-pathname))))
   (cond
+    ;; Already loaded (e.g. by ~/.sbclrc). Re-loading the runtime re-evaluates
+    ;; its (defconstant +version+ ...) and signals DEFCONSTANT-UNEQL, so stop.
+    ((member :ocicl *features*))
     ((probe-file local) (load local))
     ((probe-file global) (load global))
     (t (format *error-output*
