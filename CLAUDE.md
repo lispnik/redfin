@@ -14,6 +14,8 @@ and never commit scraped listing data to the repo.
 
 - `redfin.asd` — system definitions: `:redfin`, `:redfin/cli`, `:redfin/tests`.
 - `src/package.lisp` — package + exports. Add new public symbols here.
+- `src/cache.lisp` — the optional on-disk response cache (`*cache-enabled*`,
+  `*cache-ttl*`, `*cache-directory*`, `cache-get`/`cache-put`, `clear-cache`).
 - `src/regions.lisp` — `resolve-region`, the `redfin-error` condition, and the
   shared `http-get` / user-agent / `strip-guard` helpers.
 - `src/listings.lisp` — query building, CSV parsing, the `listing` struct,
@@ -22,8 +24,9 @@ and never commit scraped listing data to the repo.
   parsing, table/CSV output, and the `toplevel` executable entry point.
 - `tests/main.lisp` — FiveAM suite.
 
-The core library files (`package → regions → listings`) load `:serial t`;
-keep that order, since `listings` uses conditions/helpers from `regions`.
+The core library files (`package → cache → regions → listings`) load
+`:serial t`; keep that order, since `http-get` in `regions` calls the cache
+helpers and `listings` uses conditions/helpers from `regions`.
 `cli.lisp` is a *separate* system (`:redfin/cli`, depends on `:redfin`) so the
 library stays free of CLI concerns — don't fold it into the `:redfin` system.
 
@@ -84,4 +87,8 @@ library stays free of CLI concerns — don't fold it into the `:redfin` system.
   `parse-csv` so it doesn't become an all-NIL phantom `listing`.
 - The endpoint caps results at 350 rows. `search-listings` with
   `:tile-when-capped t` splits a price range into bands to work around it.
-- The stingray endpoint is US-IP only and rate-limits by IP.
+- The stingray endpoint is US-IP only and rate-limits by IP. `http-get`
+  caches successful responses on disk (keyed on the full URL, `*cache-ttl*`
+  default 3600s) to avoid re-hitting it; bind `*cache-enabled*` to NIL (or use
+  the CLI `--no-cache`) to bypass. A gis-csv error path that returns HTTP 200
+  with guarded JSON *will* be cached — `--clear-cache` or the TTL clears it.

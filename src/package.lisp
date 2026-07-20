@@ -35,6 +35,12 @@
    #:region-id
    #:region-type
    #:region-name
+   ;; response cache
+   #:*cache-enabled*
+   #:*cache-ttl*
+   #:*cache-directory*
+   #:cache-dir
+   #:clear-cache
    ;; conditions
    #:redfin-error
    #:redfin-error-message

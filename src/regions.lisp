@@ -49,19 +49,23 @@ Remove it if present so the remainder can be parsed as JSON."
         body)))
 
 (defun http-get (url &key parameters)
-  "GET URL with a browser user-agent. Returns the response body as a string.
-Signals REDFIN-ERROR on a non-2xx status."
-  (multiple-value-bind (body status)
-      (dex:get (if parameters
-                   (quri:make-uri :defaults url
-                                  :query parameters)
-                   url)
-               :headers `(("User-Agent" . ,+user-agent+))
-               :force-string t)
-    (unless (<= 200 status 299)
-      (error 'redfin-error :code status
-                           :message (format nil "HTTP ~a for ~a" status url)))
-    body))
+  "GET URL (with optional query PARAMETERS) using a browser user-agent and
+return the response body as a string. Signals REDFIN-ERROR on a non-2xx
+status. Identical requests are served from / stored in the on-disk cache (see
+cache.lisp) unless *CACHE-ENABLED* is NIL; only successful bodies are cached."
+  (let ((full (quri:render-uri
+               (if parameters
+                   (quri:make-uri :defaults url :query parameters)
+                   (quri:uri url)))))
+    (or (cache-get full)
+        (multiple-value-bind (body status)
+            (dex:get full
+                     :headers `(("User-Agent" . ,+user-agent+))
+                     :force-string t)
+          (unless (<= 200 status 299)
+            (error 'redfin-error :code status
+                                 :message (format nil "HTTP ~a for ~a" status url)))
+          (cache-put full body)))))
 
 (defun region-type-from-url (url)
   "Given a Redfin region path like \"/city/30818/TX/Austin\", return the

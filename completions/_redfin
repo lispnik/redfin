@@ -40,6 +40,9 @@ _redfin() {
     '--band-count[number of price bands when --tile is set]:band count:' \
     '--format[output format]:format:(table csv)' \
     '--no-url[omit the URL column from table output]' \
+    '--no-cache[bypass the on-disk cache for this run]' \
+    '--cache-ttl[treat cached entries older than SECONDS as stale]:seconds:' \
+    '--clear-cache[delete all cached responses and exit]' \
     '--sort[sort by FIELD, direction asc or desc]:sort:->sort' \
     '--limit[show at most N listings]:limit:' \
     '(-h --help)'{-h,--help}'[show this help]'

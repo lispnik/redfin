@@ -106,26 +106,44 @@ Listings with a NIL value for the field always sort last."
                            (t nil)))))))
 
 (defun parse-args (args)
-  "Parse ARGS into (values SEARCH-PLIST FORMAT LIMIT SORT NO-URL).
-SEARCH-PLIST is passed straight to REDFIN:SEARCH-LISTINGS. FORMAT is :table
-or :csv. LIMIT is NIL or a positive integer. SORT is NIL or a
-(ACCESSOR . DESCP) cons. NO-URL is true to omit the URL column from table
-output. Signals REDFIN-ERROR on bad input; prints usage and exits for --help."
+  "Parse ARGS into (values SEARCH-PLIST OPTS). SEARCH-PLIST goes straight to
+REDFIN:SEARCH-LISTINGS. OPTS is a plist of output/runtime options:
+  :format    :table (default) or :csv
+  :limit     NIL or a non-negative integer
+  :sort      NIL or a (ACCESSOR . DESCP) cons
+  :no-url    true to omit the URL column from table output
+  :no-cache  true to bypass the on-disk response cache
+  :cache-ttl NIL or a non-negative integer (override cache freshness seconds)
+Signals REDFIN-ERROR on bad input. Prints usage and exits for --help; clears
+the cache and exits for --clear-cache."
   (let ((search '())
         (format :table)
         (limit nil)
         (sort nil)
-        (no-url nil))
+        (no-url nil)
+        (no-cache nil)
+        (cache-ttl nil))
     (loop while args
           for arg = (pop args)
           do (cond
                ((or (string= arg "--help") (string= arg "-h"))
                 (print-usage)
                 (uiop:quit 0))
+               ((string= arg "--clear-cache")
+                (format t "~&Cleared ~a cached response~:p from ~a~%"
+                        (redfin:clear-cache) (redfin:cache-dir))
+                (uiop:quit 0))
                ((string= arg "--tile")
                 (setf search (list* :tile-when-capped t search)))
                ((string= arg "--no-url")
                 (setf no-url t))
+               ((string= arg "--no-cache")
+                (setf no-cache t))
+               ((string= arg "--cache-ttl")
+                (let ((n (parse-int arg (require-value arg (pop args)))))
+                  (when (minusp n)
+                    (error 'redfin:redfin-error :message "--cache-ttl must be >= 0"))
+                  (setf cache-ttl n)))
                ((string= arg "--format")
                 (let ((v (require-value arg (pop args))))
                   (setf format
@@ -154,7 +172,9 @@ output. Signals REDFIN-ERROR on bad input; prints usage and exits for --help."
                                   (:int (parse-int flag raw))
                                   (:keywords (parse-keyword-list raw)))))
                       (setf search (list* key val search))))))))
-    (values search format limit sort no-url)))
+    (values search (list :format format :limit limit :sort sort
+                         :no-url no-url :no-cache no-cache
+                         :cache-ttl cache-ttl))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Output
@@ -271,6 +291,12 @@ Output:
   --limit N              show at most N listings
   -h, --help             show this help
 
+Cache (identical requests are served from an on-disk cache by default):
+  --no-cache             bypass the cache for this run (always hit the network)
+  --cache-ttl SECONDS    treat cached entries older than SECONDS as stale
+                         (default 3600)
+  --clear-cache          delete all cached responses and exit
+
 Example:
   redfin --location \"Austin, TX\" --min-price 500000 --max-price 760000 \\
          --min-beds 3 --min-baths 2 --property-types house,condo,townhouse \\
@@ -284,19 +310,24 @@ Example:
 (defun main (args)
   "Run the CLI over ARGS (command-line arguments, program name excluded).
 Performs network requests to redfin.com."
-  (multiple-value-bind (search format limit sort no-url) (parse-args args)
+  (multiple-value-bind (search opts) (parse-args args)
     (unless (or (getf search :location) (getf search :region-id))
       (error 'redfin:redfin-error
              :message "Provide --location or --region-id (try --help)"))
-    (let ((listings (apply #'redfin:search-listings search)))
-      (when sort
-        (setf listings (sort-listings listings (car sort) (cdr sort))))
-      (when (and limit (> (length listings) limit))
-        (setf listings (subseq listings 0 limit)))
-      (ecase format
-        (:table (print-table listings (not no-url)))
-        (:csv (print-csv listings)))
-      (format *error-output* "~&~d listing~:p~%" (length listings)))))
+    (let ((redfin:*cache-enabled* (and redfin:*cache-enabled*
+                                       (not (getf opts :no-cache))))
+          (redfin:*cache-ttl* (or (getf opts :cache-ttl) redfin:*cache-ttl*)))
+      (let ((listings (apply #'redfin:search-listings search))
+            (sort (getf opts :sort))
+            (limit (getf opts :limit)))
+        (when sort
+          (setf listings (sort-listings listings (car sort) (cdr sort))))
+        (when (and limit (> (length listings) limit))
+          (setf listings (subseq listings 0 limit)))
+        (ecase (getf opts :format)
+          (:table (print-table listings (not (getf opts :no-url))))
+          (:csv (print-csv listings)))
+        (format *error-output* "~&~d listing~:p~%" (length listings))))))
 
 (defun first-line (string)
   "The first line of STRING, so error reports don't dump multi-line HTML

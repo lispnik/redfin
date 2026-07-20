@@ -14,6 +14,7 @@
   :components ((:module "src"
                 :serial t
                 :components ((:file "package")
+                             (:file "cache")
                              (:file "regions")
                              (:file "listings"))))
   :in-order-to ((test-op (test-op #:redfin/tests))))

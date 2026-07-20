@@ -87,6 +87,22 @@ the ten priciest. Sortable fields: `price`, `beds`, `baths`, `sqft`,
 (`ppsf`), `hoa`; listings missing that field sort last. See
 `bin/redfin --help` for the full option list.
 
+### Response caching
+
+Identical requests are served from an on-disk cache (default
+`~/.cache/redfin/`) instead of re-hitting the rate-limited endpoint. Entries
+are keyed on the full request URL and expire after `--cache-ttl` seconds
+(default 3600). Control it with:
+
+```sh
+bin/redfin ... --no-cache          # always hit the network this run
+bin/redfin ... --cache-ttl 600     # treat entries older than 10 min as stale
+bin/redfin --clear-cache           # delete all cached responses and exit
+```
+
+From Lisp, bind `redfin:*cache-enabled*`, `redfin:*cache-ttl*`, or
+`redfin:*cache-directory*`, or call `(redfin:clear-cache)`.
+
 ### Shell completion
 
 Completion scripts for every flag (with value completion for `--sort`,

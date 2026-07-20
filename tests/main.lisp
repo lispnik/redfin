@@ -227,6 +227,59 @@
     (is (equal '(500000 300000 nil) (mapcar #'redfin:listing-price desc)))))
 
 ;;; ---------------------------------------------------------------------------
+;;; Response cache (offline; uses a temp directory)
+;;; ---------------------------------------------------------------------------
+
+(defmacro with-temp-cache (&body body)
+  "Run BODY with the cache pointed at a fresh temp dir, cleaned up after."
+  `(let ((redfin:*cache-directory*
+           (ensure-directories-exist
+            (merge-pathnames "redfin-tests-cache/" (uiop:temporary-directory))))
+         (redfin:*cache-enabled* t)
+         (redfin:*cache-ttl* 3600))
+     (unwind-protect (progn ,@body)
+       (redfin:clear-cache))))
+
+(test cache-key-deterministic-and-distinct
+  (is (string= (redfin::cache-key "https://x/a")
+               (redfin::cache-key "https://x/a")))
+  (is (not (string= (redfin::cache-key "https://x/a")
+                    (redfin::cache-key "https://x/b"))))
+  ;; 16 lowercase hex chars
+  (is (= 16 (length (redfin::cache-key "anything"))))
+  (is (every (lambda (c) (find c "0123456789abcdef"))
+             (redfin::cache-key "anything"))))
+
+(test cache-round-trips-body
+  (with-temp-cache
+    (is (null (redfin::cache-get "http://u/1")))
+    (redfin::cache-put "http://u/1" "hello,csv")
+    (is (string= "hello,csv" (redfin::cache-get "http://u/1")))
+    ;; distinct URLs don't collide
+    (is (null (redfin::cache-get "http://u/2")))))
+
+(test cache-respects-ttl
+  (with-temp-cache
+    (redfin::cache-put "http://u/ttl" "body")
+    (let ((redfin:*cache-ttl* -1))          ; any entry is already stale
+      (is (null (redfin::cache-get "http://u/ttl"))))))
+
+(test cache-disabled-neither-reads-nor-writes
+  (with-temp-cache
+    (let ((redfin:*cache-enabled* nil))
+      (redfin::cache-put "http://u/off" "body")   ; must not write
+      (is (null (redfin::cache-get "http://u/off"))))
+    ;; still absent once re-enabled -> confirms nothing was written
+    (is (null (redfin::cache-get "http://u/off")))))
+
+(test cache-clear-removes-entries
+  (with-temp-cache
+    (redfin::cache-put "http://u/a" "a")
+    (redfin::cache-put "http://u/b" "b")
+    (is (= 2 (redfin:clear-cache)))
+    (is (null (redfin::cache-get "http://u/a")))))
+
+;;; ---------------------------------------------------------------------------
 ;;; Optional live test (network). Enabled only when REDFIN_LIVE_TESTS is set,
 ;;; so CI and offline runs stay green.
 ;;; ---------------------------------------------------------------------------

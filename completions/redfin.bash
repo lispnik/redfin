@@ -16,7 +16,8 @@ _redfin() {
 --min-price --max-price --min-beds --max-beds --min-baths \
 --min-sqft --max-sqft --min-year-built --max-year-built --max-hoa \
 --min-stories --status --property-types --tile --band-count \
---format --no-url --sort --limit -h --help"
+--format --no-url --sort --limit --no-cache --cache-ttl --clear-cache \
+-h --help"
 
     # Numeric fields --sort accepts, plus their aliases.
     sort_fields="price beds baths sqft lot-size year-built year \
@@ -40,7 +41,7 @@ days-on-market dom price-per-sqft ppsf hoa"
             COMPREPLY=( $(compgen -W "$sort_fields" -- "$cur") ); return 0 ;;
         --location|--region-id|--min-price|--max-price|--min-beds|--max-beds|\
 --min-baths|--min-sqft|--max-sqft|--min-year-built|--max-year-built|\
---max-hoa|--min-stories|--band-count|--limit)
+--max-hoa|--min-stories|--band-count|--limit|--cache-ttl)
             # Free-form values; nothing to suggest.
             return 0 ;;
     esac
