@@ -103,14 +103,16 @@ contains commas (e.g. \"Downtown Austin, TX\")."
             (and city (html-escape city)))))
 
 (defun pins-json (listings)
-  "A JSON array of {lon,lat,label} for listings that have coordinates."
+  "A JSON array of {i,lon,lat,label} for listings that have coordinates. `i`
+is the listing's row index, so a pin can highlight its table row."
   (format nil "[~{~a~^,~}]"
           (loop for l in listings
+                for i from 0
                 for lat = (redfin:listing-latitude l)
                 for lon = (redfin:listing-longitude l)
                 when (and (realp lat) (realp lon))
-                  collect (format nil "{\"lon\":~a,\"lat\":~a,\"label\":\"~a\"}"
-                                  (coord-str lon) (coord-str lat)
+                  collect (format nil "{\"i\":~a,\"lon\":~a,\"lat\":~a,\"label\":\"~a\"}"
+                                  i (coord-str lon) (coord-str lat)
                                   (js-escape (pin-label l))))))
 
 (defun map-init-js (token)
@@ -121,13 +123,21 @@ if(typeof mapboxgl==='undefined'||!document.getElementById('redfin-map')){setTim
 mapboxgl.accessToken='~a';
 window.redfinMap=new mapboxgl.Map({container:'redfin-map',style:'mapbox://styles/mapbox/streets-v12',center:[-97.74,30.27],zoom:9});
 window.redfinMarkers=[];
+window.redfinHighlightRow=function(i){
+document.querySelectorAll('[data-redfin-row]').forEach(function(r){r.style.background='';});
+var row=document.querySelector('[data-redfin-row=\"'+i+'\"]');
+if(row){row.style.background='#fde68a';row.scrollIntoView({behavior:'smooth',block:'center'});}
+};
 window.redfinSetPins=function(pins){
 (window.redfinMarkers||[]).forEach(function(m){m.remove();});
 window.redfinMarkers=[];
+if(window.redfinHighlightRow){window.redfinHighlightRow(-1);}
 if(!pins||!pins.length){return;}
 var b=new mapboxgl.LngLatBounds();
 pins.forEach(function(p){
 var mk=new mapboxgl.Marker().setLngLat([p.lon,p.lat]).setPopup(new mapboxgl.Popup({offset:12}).setHTML(p.label)).addTo(window.redfinMap);
+var el=mk.getElement();el.style.cursor='pointer';
+el.addEventListener('click',function(){window.redfinHighlightRow(p.i);});
 window.redfinMarkers.push(mk);b.extend([p.lon,p.lat]);
 });
 window.redfinMap.fitBounds(b,{padding:40,maxZoom:14,duration:0});
@@ -193,8 +203,11 @@ is NIL."
               (setf (clog:style th "padding") "4px 8px")
               (setf (clog:style th "border-bottom") "2px solid #888"))))
         (loop for l in listings
+              for i from 0
               for cc in (or commute-cells (make-list (length listings)))
               do (let ((row (clog:create-table-row table)))
+                   ;; index used by a map pin to highlight this row
+                   (setf (clog:attribute row "data-redfin-row") (princ-to-string i))
                    (flet ((col (content)
                             (let ((td (clog:create-table-column
                                        row :content (html-escape content))))
@@ -305,7 +318,7 @@ load Mapbox GL JS and initialize the map; otherwise show a hint."
     (let ((h (clog:create-section page :h1 :content "Redfin listings")))
       (setf (clog:style h "margin-bottom") "0.25rem"))
     (clog:create-p page :content
-                   "Search active for-sale listings. Enter a location (e.g. \"Austin, TX\") or a Redfin region id.")
+                   "Search active for-sale listings. Enter a location (e.g. \"Austin, TX\") or a Redfin region id. Click a map pin to highlight its row.")
     ;; Top row: search form on the left, map on the right.
     (let* ((top (clog:create-div page))
            (form (clog:create-div top))
