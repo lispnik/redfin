@@ -1,7 +1,7 @@
 LISP ?= sbcl
 LOAD = --load setup.lisp
 
-.PHONY: deps build test test-live repl clean
+.PHONY: deps build test test-live repl clog clean
 
 deps:
 	ocicl install
@@ -28,6 +28,14 @@ test-live:
 # Interactive REPL with the system loaded.
 repl:
 	$(LISP) $(LOAD) --eval '(asdf:load-system :redfin)'
+
+# Start the CLOG web GUI (foreground) on PORT (default 8080).
+PORT ?= 8080
+clog:
+	$(LISP) $(LOAD) \
+	  --eval '(asdf:load-system :redfin/clog)' \
+	  --eval '(redfin/clog:start :port $(PORT))' \
+	  --eval '(loop (sleep 3600))'
 
 clean:
 	find . -name '*.fasl' -delete

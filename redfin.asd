@@ -34,6 +34,16 @@
   :build-pathname "bin/redfin"
   :entry-point "redfin/cli:toplevel")
 
+(asdf:defsystem #:redfin/clog
+  :description "CLOG (browser) GUI for the redfin client."
+  :author "Matthew"
+  :license "MIT"
+  :version "0.1.0"
+  :depends-on (#:redfin #:clog)
+  :serial t
+  :components ((:module "src"
+                :components ((:file "clog")))))
+
 (asdf:defsystem #:redfin/tests
   :description "FiveAM test suite for REDFIN."
   :depends-on (#:redfin

@@ -155,6 +155,30 @@ cp completions/_redfin ~/.zsh/completions/
 lot-size year-built days-on-market price-per-sqft hoa latitude longitude
 mls url`. Numeric slots are parsed to numbers; blanks become `nil`.
 
+## Web GUI (CLOG)
+
+A browser GUI built on [CLOG](https://github.com/rabbibotton/clog) lives in the
+separate `:redfin/clog` system (depends on `:redfin` + `:clog`; run
+`ocicl install` to fetch CLOG). It presents a search form and a results table,
+using only the exported `redfin` API.
+
+```sh
+make clog            # foreground server on :8080 (PORT=9000 make clog to change)
+```
+
+or from a REPL:
+
+```lisp
+(asdf:load-system :redfin/clog)
+(redfin/clog:start :port 8080 :open t)   ; :open launches a browser
+;; ... (redfin/clog:stop) to shut down
+```
+
+Then open <http://127.0.0.1:8080/>. The form covers location/region, the price/
+bed/bath/size filters, sort, limit, and a comma-separated **Commute to** field
+(adds mean±sd commute columns; needs `MAPBOX_TOKEN` in the server's
+environment). Errors are shown in-page.
+
 ## Filter reference
 
 These map to reverse-engineered stingray params and can change without notice:

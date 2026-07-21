@@ -28,6 +28,8 @@ and never commit scraped listing data to the repo.
   last (uses `http-get`, `parse-json`/`jget`, and the `listing` accessors).
 - `src/cli.lisp` — the standalone CLI (`redfin/cli` package + system): arg
   parsing, table/CSV output, and the `toplevel` executable entry point.
+- `src/clog.lisp` — the CLOG browser GUI (`redfin/clog` package + system):
+  a search form + results table over the exported `redfin` API. `start`/`stop`.
 - `tests/main.lisp` — FiveAM suite.
 
 The core library files (`package → cache → regions → listings → commute`) load
@@ -35,8 +37,10 @@ The core library files (`package → cache → regions → listings → commute`
 helpers, `listings` uses conditions/helpers from `regions`, and `commute` uses
 all of the above. Commute needs a Mapbox token in `MAPBOX_TOKEN` /
 `MAPBOX_ACCESS_TOKEN` (or `redfin:*mapbox-token*`).
-`cli.lisp` is a *separate* system (`:redfin/cli`, depends on `:redfin`) so the
-library stays free of CLI concerns — don't fold it into the `:redfin` system.
+`cli.lisp` and `clog.lisp` are each *separate* systems (`:redfin/cli` and
+`:redfin/clog`, both depending on `:redfin`) so the library stays free of
+UI concerns — don't fold either into the `:redfin` system. `:redfin/clog` also
+depends on `:clog`; both consume only the exported `redfin` API.
 
 ## Environment
 
@@ -44,7 +48,8 @@ library stays free of CLI concerns — don't fold it into the `:redfin` system.
 - Run `ocicl install` in the repo root to fetch deps into `systems/` before
   first load; `setup.lisp` wires ocicl into the SBCL image.
 - Dependencies: `dexador`, `quri`, `cl-csv`, `com.inuoe.jzon`, `alexandria`,
-  plus `fiveam` for tests. JSON parsing goes through the `parse-json` / `jget`
+  plus `fiveam` for tests and `clog` for the `:redfin/clog` GUI system. JSON
+  parsing goes through the `parse-json` / `jget`
   helpers in `regions.lisp`, not `com.inuoe.jzon:parse` directly — keep it that
   way so the parser stays swappable in one place.
 
@@ -57,6 +62,8 @@ library stays free of CLI concerns — don't fold it into the `:redfin` system.
 - `make test-live` — run tests including the live network test
   (`REDFIN_LIVE_TESTS=1`). Hits redfin.com; needs a US IP.
 - `make repl` — start SBCL with the system loaded.
+- `make clog` — run the CLOG web GUI in the foreground (`PORT=NNNN` to change
+  the default 8080); loads `:redfin/clog`.
 - `make clean` — remove `.fasl` artifacts.
 
 ## Conventions
