@@ -68,6 +68,72 @@ contains commas (e.g. \"Downtown Austin, TX\")."
                (#\" (write-string "&quot;" o))
                (t (write-char c o))))))
 
+(defun js-escape (s)
+  "Escape S for embedding inside a JS double-quoted string literal."
+  (with-output-to-string (o)
+    (loop for c across (or s "")
+          do (case c
+               (#\\ (write-string "\\\\" o))
+               (#\" (write-string "\\\"" o))
+               (#\Newline (write-string "\\n" o))
+               (#\Return nil)
+               (t (write-char c o))))))
+
+;;; ---------------------------------------------------------------------------
+;;; Mapbox map (client-side; the token is used only in the browser, as Mapbox
+;;; GL JS requires, and is read from the server's environment -- never stored
+;;; in source).
+;;; ---------------------------------------------------------------------------
+
+(defparameter *mapbox-gl-version* "v3.9.3")
+
+(defun map-token ()
+  (or redfin:*mapbox-token*
+      (uiop:getenv "MAPBOX_TOKEN")
+      (uiop:getenv "MAPBOX_ACCESS_TOKEN")))
+
+(defun coord-str (x) (format nil "~f" x))
+
+(defun pin-label (l)
+  "Popup HTML for a listing marker."
+  (let ((city (redfin:listing-city l)))
+    (format nil "<b>~a</b><br>~a~@[, ~a~]"
+            (html-escape (fmt-price (redfin:listing-price l)))
+            (html-escape (or (redfin:listing-address l) ""))
+            (and city (html-escape city)))))
+
+(defun pins-json (listings)
+  "A JSON array of {lon,lat,label} for listings that have coordinates."
+  (format nil "[~{~a~^,~}]"
+          (loop for l in listings
+                for lat = (redfin:listing-latitude l)
+                for lon = (redfin:listing-longitude l)
+                when (and (realp lat) (realp lon))
+                  collect (format nil "{\"lon\":~a,\"lat\":~a,\"label\":\"~a\"}"
+                                  (coord-str lon) (coord-str lat)
+                                  (js-escape (pin-label l))))))
+
+(defun map-init-js (token)
+  "Browser JS: init the map and define window.redfinSetPins(pins). Polls until
+mapboxgl and the container are ready, so it is robust to script load order."
+  (format nil "(function init(){
+if(typeof mapboxgl==='undefined'||!document.getElementById('redfin-map')){setTimeout(init,60);return;}
+mapboxgl.accessToken='~a';
+window.redfinMap=new mapboxgl.Map({container:'redfin-map',style:'mapbox://styles/mapbox/streets-v12',center:[-97.74,30.27],zoom:9});
+window.redfinMarkers=[];
+window.redfinSetPins=function(pins){
+(window.redfinMarkers||[]).forEach(function(m){m.remove();});
+window.redfinMarkers=[];
+if(!pins||!pins.length){return;}
+var b=new mapboxgl.LngLatBounds();
+pins.forEach(function(p){
+var mk=new mapboxgl.Marker().setLngLat([p.lon,p.lat]).setPopup(new mapboxgl.Popup({offset:12}).setHTML(p.label)).addTo(window.redfinMap);
+window.redfinMarkers.push(mk);b.extend([p.lon,p.lat]);
+});
+window.redfinMap.fitBounds(b,{padding:40,maxZoom:14,duration:0});
+};
+})();" token))
+
 ;;; ---------------------------------------------------------------------------
 ;;; Sorting (local; the library exports accessors, not a sort)
 ;;; ---------------------------------------------------------------------------
@@ -199,6 +265,10 @@ RESULTS. Reports counts/errors into the STATUS element."
                                               targets))
                                     listings))))
               (render-results results listings labels cells))
+            ;; drop a pin on the map for each result (no-op if the map is off)
+            (clog:js-execute results
+                             (format nil "if(window.redfinSetPins){redfinSetPins(~a);}"
+                                     (pins-json listings)))
             (setf (clog:text status)
                   (format nil "~d listing~:p" (length listings))))))
     (redfin:redfin-error (e)
@@ -206,17 +276,39 @@ RESULTS. Reports counts/errors into the STATUS element."
     (error (e)
       (setf (clog:text status) (format nil "Error: ~a" e)))))
 
+(defun build-map (parent body)
+  "Create the map container beside the form. If a Mapbox token is available,
+load Mapbox GL JS and initialize the map; otherwise show a hint."
+  (let ((token (map-token)))
+    (if token
+        (let ((map-div (clog:create-div parent :html-id "redfin-map"))
+              (doc (clog:html-document body)))
+          (setf (clog:style map-div "width") "560px")
+          (setf (clog:style map-div "height") "460px")
+          (setf (clog:style map-div "border") "1px solid #ccc")
+          (setf (clog:style map-div "border-radius") "4px")
+          (clog:load-css doc (format nil "https://api.mapbox.com/mapbox-gl-js/~a/mapbox-gl.css"
+                                     *mapbox-gl-version*))
+          (clog:load-script doc (format nil "https://api.mapbox.com/mapbox-gl-js/~a/mapbox-gl.js"
+                                        *mapbox-gl-version*))
+          (clog:js-execute body (map-init-js token)))
+        (let ((note (clog:create-p parent :content
+                                   "Set MAPBOX_TOKEN in the server environment to show the map.")))
+          (setf (clog:style note "color") "#888")))))
+
 (defun on-new-window (body)
   (setf (clog:title (clog:html-document body)) "Redfin")
   (let ((page (clog:create-div body)))
-    (setf (clog:style page "max-width") "1000px")
+    (setf (clog:style page "max-width") "1200px")
     (setf (clog:style page "margin") "1rem auto")
     (setf (clog:style page "font-family") "system-ui, sans-serif")
     (let ((h (clog:create-section page :h1 :content "Redfin listings")))
       (setf (clog:style h "margin-bottom") "0.25rem"))
     (clog:create-p page :content
                    "Search active for-sale listings. Enter a location (e.g. \"Austin, TX\") or a Redfin region id.")
-    (let* ((form (clog:create-div page))
+    ;; Top row: search form on the left, map on the right.
+    (let* ((top (clog:create-div page))
+           (form (clog:create-div top))
            (fields
              (list :location      (labeled form "Location" :text :width "18rem")
                    :region-id     (labeled form "…or region id" :text)
@@ -243,13 +335,23 @@ RESULTS. Reports counts/errors into the STATUS element."
       (clog:create-p form :content
                      "Property types: comma-separated (house, condo, townhouse, …). Commute to: semicolon-separated destinations, e.g. \"Downtown Austin, TX; The Domain, Austin, TX\" (needs MAPBOX_TOKEN).")
       (let ((btn (clog:create-button form :content "Search"))
-            (status (clog:create-div page))
+            (status (clog:create-div form))
             (results (clog:create-div page)))
         (setf (clog:style btn "padding") "6px 16px")
         (setf (clog:style btn "margin") "8px 0")
         (setf (clog:style status "margin") "8px 0")
         (setf (clog:style status "font-weight") "bold")
+        (setf (clog:style results "margin-top") "1rem")
         (setf (clog:style results "overflow-x") "auto")
+        ;; lay the form and map side by side, then wire the search. The form
+        ;; gets a fixed width so its help text wraps instead of stretching the
+        ;; column and pushing the map off-screen.
+        (setf (clog:style top "display") "flex")
+        (setf (clog:style top "gap") "24px")
+        (setf (clog:style top "align-items") "flex-start")
+        (setf (clog:style form "flex") "0 0 30rem")
+        (setf (clog:style form "max-width") "30rem")
+        (build-map top body)
         (clog:set-on-click btn (lambda (obj)
                                  (declare (ignore obj))
                                  (run-search fields status results)))))))
