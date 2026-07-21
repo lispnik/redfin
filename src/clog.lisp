@@ -32,6 +32,14 @@
              (mapcar (lambda (x) (string-trim '(#\Space #\Tab) x))
                      (uiop:split-string (or s "") :separator ","))))
 
+(defun semi-list (s)
+  "Split a SEMICOLON-separated field into trimmed non-empty strings. Commute
+destinations are separated by ';' (not ',') because an address itself
+contains commas (e.g. \"Downtown Austin, TX\")."
+  (remove-if #'blankp
+             (mapcar (lambda (x) (string-trim '(#\Space #\Tab) x))
+                     (uiop:split-string (or s "") :separator ";"))))
+
 (defun keyword-list (s)
   (mapcar (lambda (x) (intern (string-upcase x) :keyword)) (comma-list s)))
 
@@ -177,7 +185,7 @@ RESULTS. Reports counts/errors into the STATUS element."
               (setf listings (subseq listings 0 limit)))
             ;; commute columns (optional; needs MAPBOX_TOKEN)
             (let* ((targets (mapcar #'redfin:resolve-commute-target
-                                    (comma-list (clog:value (getf fields :commute-to)))))
+                                    (semi-list (clog:value (getf fields :commute-to)))))
                    (labels (mapcar #'redfin:commute-target-label targets))
                    (deps (when targets (redfin:weekday-departures)))
                    (cells (when targets
@@ -233,7 +241,7 @@ RESULTS. Reports counts/errors into the STATUS element."
                                            :value (princ-to-string i)))
           (setf fields (append fields (list :sort sel)))))
       (clog:create-p form :content
-                     "Property types: comma-separated (house, condo, townhouse, …). Commute to: comma-separated destinations (needs MAPBOX_TOKEN).")
+                     "Property types: comma-separated (house, condo, townhouse, …). Commute to: semicolon-separated destinations, e.g. \"Downtown Austin, TX; The Domain, Austin, TX\" (needs MAPBOX_TOKEN).")
       (let ((btn (clog:create-button form :content "Search"))
             (status (clog:create-div page))
             (results (clog:create-div page)))
